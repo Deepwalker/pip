@@ -481,7 +481,10 @@ exec(compile(
 
     @property
     def installed_version(self):
-        return self.pkg_info()['version']
+        try:
+            return self.req_version or self.pkg_info()['version']
+        except:
+            return None
 
     def assert_source_matches_version(self):
         assert self.source_dir

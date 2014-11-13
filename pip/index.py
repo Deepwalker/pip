@@ -470,6 +470,7 @@ class PackageFinder(object):
                 RemovedInPip7Warning,
             )
 
+        req.req_version = applicable_versions[0][2]
         return selected_version
 
     def _find_url_name(self, index_url, url_name, req):

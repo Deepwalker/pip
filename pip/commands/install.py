@@ -65,6 +65,16 @@ class InstallCommand(Command):
         )
 
         cmd_opts.add_option(
+            '-p', '--pundle',
+            dest='pundle',
+            action="store_true",
+            help='Install packages into <dir>. '
+                 'By default this will not replace existing files/folders in '
+                 '<dir>. Use --upgrade to replace existing packages in <dir> '
+                 'with new versions.'
+        )
+
+        cmd_opts.add_option(
             '-d', '--download', '--download-dir', '--download-directory',
             dest='download_dir',
             metavar='dir',
@@ -196,7 +206,6 @@ class InstallCommand(Command):
         )
 
     def run(self, options, args):
-
         if (
             options.no_install or
             options.no_download
@@ -370,8 +379,35 @@ class InstallCommand(Command):
 
             lib_dir = distutils_scheme('', home=temp_target_dir)['purelib']
 
+            if options.pundle:
+                freezed_requirements = []
+
             for item in os.listdir(lib_dir):
-                target_item_dir = os.path.join(options.target_dir, item)
+                if options.pundle:
+                    req_item = item.replace('.py', '') if item.endswith('.py') else item
+                    if requirement_set.has_requirement(req_item):
+                        req = requirement_set.get_requirement(req_item)
+                        req_installed_version = req.installed_version
+                        target_item_up_dir = os.path.join(
+                            options.target_dir,
+                            '%s-%s' % (req_item, req_installed_version)
+                        )
+                        try:
+                            os.makedirs(target_item_up_dir)
+                        except FileExistsError as e:
+                            pass
+                        target_item_dir = os.path.join(target_item_up_dir, item)
+                        text_version = req_item + '==' + req.installed_version if req_installed_version else req.url
+                        freezed_requirements.append({
+                            'version': text_version,
+                            'path': target_item_dir,
+                            'item': req_item,
+                        })
+                    else:
+                        logger.warning('Unknown %s item in the dir' % item)
+                        continue
+                else:
+                    target_item_dir = os.path.join(options.target_dir, item)
                 if os.path.exists(target_item_dir):
                     if not options.upgrade:
                         logger.warning(
@@ -398,5 +434,7 @@ class InstallCommand(Command):
                     os.path.join(lib_dir, item),
                     target_item_dir
                 )
+            if options.pundle:
+                open('freezed.txt', 'w').write('\n'.join('{version} ### {item} ### {path}'.format(**item) for item in freezed_requirements))
             shutil.rmtree(temp_target_dir)
         return requirement_set
